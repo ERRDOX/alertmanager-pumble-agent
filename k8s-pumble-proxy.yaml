@@ -1,0 +1,77 @@
+
+# why we act like that? 
+# Because there is no way to use Pumble webhook in prometheus operator AlertmangerConfig.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pumble-proxy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pumble-proxy
+  template:
+    metadata:
+      labels:
+        app: pumble-proxy
+    spec:
+      imagePullSecrets:
+      - name: private-registry-cred
+      containers:
+        - name: pumble-proxy
+          image: private-hub/pumble/proxy
+          imagePullPolicy: Always
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "100m"
+            limits:
+              memory: "128Mi"
+              cpu: "500m"
+          env:
+            - name: DEBUG
+              value: "true"
+            - name: PUMBLE_WEBHOOK_URL
+              value: <https://api.pumble.com/...>
+          ports:
+            - containerPort: 9094
+              protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pumble-proxy
+spec:
+  type: ClusterIP
+  selector:
+    app: pumble-proxy
+  ports:
+  - port: 9094
+    protocol: TCP
+    targetPort: 9094
+---
+apiVersion: monitoring.coreos.com/v1alpha1
+kind: AlertmanagerConfig
+metadata:
+  name: alertmanager-pumble
+  labels:
+    alertmanagerConfig: alertmanager-pumble
+    release: prometheus
+spec:
+  receivers:
+  - name: pumble
+    webhookConfigs:
+    - url: 'http://pumble-proxy:9094'
+      sendResolved: true
+  - name: 'null'
+  route:
+    receiver: 'pumble'
+    groupBy: ["alertname","job", "namespace"]
+    groupWait: 30s
+    groupInterval: 5m
+    repeatInterval: 1h
+    routes:
+    - receiver: 'pumble'
+      matchers:
+        - name: severity
+          value: warning|critical

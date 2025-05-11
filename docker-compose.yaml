@@ -1,0 +1,13 @@
+version: '3.8'
+services:
+  pumble-alertmanager:
+    image: pumble-alertmanager
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "9094:9094"
+    environment:
+      - PUMBLE_WEBHOOK_URL=<https://api.pumble.com/...>
+      - DEBUG=false
+    restart: unless-stopped
